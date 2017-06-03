@@ -28,78 +28,216 @@
 # ToDo:  
 #       1) add SNS topic notifications
 #       2) check current DNS entry for host
-#       3)         
+#       3) lookup SNS Target ARN based on hostname in context data        
+#       4) need to Finish coding:   update_instance_hostname()
+#       5) update test_event for Offline Testing
 
 
 
+####### Global debugging flag #######
+DEBUG = True
 
 
 
 #Find the instance
 def get_instance(event):
-    IDofInstance = event['instanceID']
-    print 'IDofInstance = {}'.format(IDofInstance)
-    return IDofInstance
+    # IDofInstance = event['instanceID']
+    # print 'IDofInstance = {}'.format(IDofInstance)
+    # return IDofInstance
+
+    if DEBUG:
+        print("event=")
+        print(event)
+        print("")
+        print("")
+
+    the_instance_id_from_SNS_event = event["detail"]["instance-id"]
+
+    if DEBUG:
+        print "the_instance_id_from_SNS_event = "
+        print (the_instance_id_from_SNS_event)
+        print ""
+        print ""
+
+    return the_instance_id_from_SNS_event
+
 
 
 #Get the Public IP
-def get_public_IP(targetInstance_ID):
+def get_public_IP_and_instance_hostname(targetInstance_ID):
     ##boto3 = boto3.client('EC2')
     #publicIP = boto3.get_public_IP(targetInstance_ID)
     
-    publicIP = '123.235.122.112'
-    print 'publicIP = {}'.format(publicIP)
-    return publicIP
+    # publicIP = '123.235.122.112'
+    # print 'publicIP = {}'.format(publicIP)
+    # return publicIP
+
+
+    if DEBUG:
+        print "------------------------"
+        print ""
+        print ""
+
+    client = boto3.client('ec2')
+
+    ipaddress = "12.23.34.45"
+    tagKey_forDNS_hostname = "dnsname"
+    tagKey_for_IP_address = "PublicIpAddress"
+    # tagValue = ""
+    # zone = ""
+    # info = ""
+    hostname_value = ""
+    list_of_tags = ""
+
+
+    instance_dict = client.describe_instances().get('Reservations')
+    for reservation in instance_dict:
+        for instance in reservation['Instances']: # This is rather not obvious
+           # print "The Instance Id is:"
+           # print instance["InstanceId"]
+
+           if instance["InstanceId"] == the_instance_id_from_SNS_event:
+               if DEBUG:
+                   print "Found matching Instance ID"
+                   # print instance
+                   print ""
+                   print "Instance="
+                   print pprint.pprint(instance)
+                   print "Instance State = " + instance[unicode('State')][unicode('Name')]
+
+               # if instance[unicode('State')][unicode('Name')] == 'running' and instance[unicode('PublicIpAddress')] != None:           
+               if instance[unicode('State')][unicode('Name')] == 'running' and instance[unicode(tagKey_for_IP_address)] != None:
+                    ipaddress = instance[tagKey_for_IP_address]
+                    if DEBUG:
+                        print "Extracted Public addres=" + ipaddress
+
+                ########## CODE FOR GETTING THE (desired) DNS HOSTNAME FROM INSTANCE ###############
+                list_of_tags = instance["Tags"] # 'Tags' is a list
+                
+                for tag in list_of_tags:
+                    if tag["Key"] == tagKey_forDNS_hostname:
+                        hostname_value = tag["Value"]
+                        if DEBUG:
+                            print "Extracted Desired DNS hostname=" + hostname_value
+
+
+    return ipaddress, hostname_value
+
 
 
 
 #Get the DNS/hostname to be updated
-def get_instance_hostname():
-    ##boto3 = boto3.client('EC2')
-    #publicIP = boto3.get_public_IP(targetInstance_ID)
+# def get_instance_hostname():
+#     ##boto3 = boto3.client('EC2')
+#     #publicIP = boto3.get_public_IP(targetInstance_ID)
 
-    publicIP = '123.235.122.112'
-        print 'publicIP = {}'.format(publicIP)
-        return publicIP
+#     publicIP = '123.235.122.112'
+#         print 'publicIP = {}'.format(publicIP)
+#         return publicIP
 
 
 
 #Update the hostname if it is not already set to the desired hostname
-def update_instance_hostname(the_targetInstance_ID, the_desired_hostname):
+def update_instance_hostname(public_IP, the_desired_hostname):
     hostname_already_setup = False
 
     # Check the current status of the hostname to determine if it needs to be updated
     #<code here>    
 
+    # if DEBUG:
+    #     if hostname_already_setup:
+    #         print 'Hostname DOES NOT need to be setup'
+    #     else:
+    #         print 'Hostname needs to be setup'
 
-    if hostname_already_setup:
-        print 'Hostname DOES NOT to be setup'
-    else:
-        print 'Hostname needs to be setup'
+    if DEBUG:
+        print "------------------------"
+        print ""
+        print ""
 
 
-#Notify the SNS Topic
 
+
+
+    client = boto3.client('route53')
+    response = client.change_resource_record_sets(
+        HostedZoneId='adrianws.com',
+        ChangeBatch={
+            'Comment': 'Updated by updateDNSaRecord() Lambda function',
+            'Changes': [
+                {
+                    'Action': 'UPSERT',
+                    'ResourceRecordSet': {
+                        'Name': 'string',
+                        'Type': 'A',
+                        # 'SetIdentifier': 'string',
+                        # 'Weight': 123,
+                        # 'Region': 'us-east-1'|'us-east-2'|'us-west-1'|'us-west-2'|'ca-central-1'|'eu-west-1'|'eu-west-2'|'eu-central-1'|'ap-southeast-1'|'ap-southeast-2'|'ap-northeast-1'|'ap-northeast-2'|'sa-east-1'|'cn-north-1'|'ap-south-1',
+                        'Region': 'us-west-2',
+                        # 'GeoLocation': {
+                        #     'ContinentCode': 'string',
+                        #     'CountryCode': 'string',
+                        #     'SubdivisionCode': 'string'
+                        # },
+                        # 'Failover': 'PRIMARY'|'SECONDARY',
+                        'TTL': 60,
+                        'ResourceRecords': [
+                            {
+                                the_desired_hostname: public_IP
+                            },
+                        ],
+                        # 'AliasTarget': {
+                        #     'HostedZoneId': 'string',
+                        #     'DNSName': 'string',
+                        #     'EvaluateTargetHealth': True|False
+                        # },
+                        # 'HealthCheckId': 'string',
+                        # 'TrafficPolicyInstanceId': 'string'
+                    }
+                },
+            ]
+        }
+    )
+
+
+
+
+
+#Notify via SNS Topic
+def publish_to_notify_topic(targetInstance_ID, desired_hostname)
+    #lookup SNS Target ARN based on hostname or context variable
+    arn = "arn:aws:sns:us-west-2:101845606311:Topic_for_notifications_for_owncloud_adrianws_com"
+    host = desired_hostname
+    instance = targetInstance_ID
+    message = "THE DNS ENTRY FOR " + instance + "has been updated to" + host
+    client_sns = boto3.client('sns')
+    response = client_sns.publish(
+        Subject="Message from the updateDNSRecord() Lambda Function",
+        TargetArn=arn,
+        Message=message
+    )
 
 
 
 
 def lambda_handler(event):
+
+    print 'Running lambda_handler'
+
     #Find the instance
     targetInstance_ID = get_instance(event)
     
     #Get the Public IP
-    public_IP = get_public_IP(targetInstance_ID)
+    public_IP, desired_hostname = get_public_IP_and_instance_hostname(targetInstance_ID)
     
     #Get the DNS/hostname to be updated
-    desired_hostname = get_instance_hostname(targetInstance_ID)
+    # desired_hostname = get_instance_hostname(targetInstance_ID)
     
     #Update the hostname 
-    update_instance_hostname(targetInstance_ID, desired_hostname)
+    update_instance_hostname(public_IP, desired_hostname)
     
-
-    #Notify the SNS Topic
-    print 'Running lambda_handler'
+    #Notify via SNS Topic
+    publish_to_notify_topic(targetInstance_ID, desired_hostname)
 
 
 
@@ -114,9 +252,10 @@ def lambda_handler(event):
 if __name__ == '__main__':
     print 'Running Locally?....'
     #Create test event
-    event = dict()
-    event['instanceID'] = 'i-12345678901234567890'
-    lambda_handler(event)
+    # test_event = dict()
+    test_event={u'account': u'101845606311', u'region': u'us-west-2', u'detail': {u'state': u'running', u'instance-id': u'i-0fbe1a6a8bbffb9d7'}, u'detail-type': u'EC2 Instance State-change Notification', u'source': u'aws.ec2', u'version': u'0', u'time': u'2017-06-03T03:53:02Z', u'id': u'9fd9ac5d-5e17-430d-aa6d-15ab47335b70', u'resources': [u'arn:aws:ec2:us-west-2:101845606311:instance/i-0fbe1a6a8bbffb9d7']}
+
+    lambda_handler(test_event)
 else:
     print '__name__ !=__main__ So this is probably running in AWS'
     print 'ALERT:  You should NOT be seeing this Alert!!'
