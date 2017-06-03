@@ -25,6 +25,10 @@
 ##import boto3
 
 
+# ToDo:  
+#       1) add SNS topic notifications
+#       2) check current DNS entry for host
+#       3)         
 
 
 
@@ -60,8 +64,18 @@ def get_instance_hostname():
 
 
 
-#Update the hostname
+#Update the hostname if it is not already set to the desired hostname
+def update_instance_hostname(the_targetInstance_ID, the_desired_hostname):
+    hostname_already_setup = False
 
+    # Check the current status of the hostname to determine if it needs to be updated
+    #<code here>    
+
+
+    if hostname_already_setup:
+        print 'Hostname DOES NOT to be setup'
+    else:
+        print 'Hostname needs to be setup'
 
 
 #Notify the SNS Topic
@@ -78,9 +92,12 @@ def lambda_handler(event):
     public_IP = get_public_IP(targetInstance_ID)
     
     #Get the DNS/hostname to be updated
-    hostname = get_instance_hostname(targetInstance_ID)
+    desired_hostname = get_instance_hostname(targetInstance_ID)
     
-    #Update the hostname
+    #Update the hostname 
+    update_instance_hostname(targetInstance_ID, desired_hostname)
+    
+
     #Notify the SNS Topic
     print 'Running lambda_handler'
 
