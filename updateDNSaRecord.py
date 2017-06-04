@@ -22,7 +22,8 @@
 ##################################################################################################
 
 
-##import boto3
+import boto3
+import pprint
 
 
 # ToDo:  
@@ -78,8 +79,8 @@ def get_public_IP_and_instance_hostname(targetInstance_ID):
         print ""
         print ""
 
-    client = boto3.client('ec2')
 
+    client = boto3.client('ec2')
     ipaddress = "12.23.34.45"
     tagKey_forDNS_hostname = "dnsname"
     tagKey_for_IP_address = "PublicIpAddress"
@@ -96,17 +97,17 @@ def get_public_IP_and_instance_hostname(targetInstance_ID):
            # print "The Instance Id is:"
            # print instance["InstanceId"]
 
-           if instance["InstanceId"] == the_instance_id_from_SNS_event:
-               if DEBUG:
-                   print "Found matching Instance ID"
-                   # print instance
-                   print ""
-                   print "Instance="
-                   print pprint.pprint(instance)
-                   print "Instance State = " + instance[unicode('State')][unicode('Name')]
+            if instance["InstanceId"] == targetInstance_ID:
+                if DEBUG:
+                    print "Found matching Instance ID"
+                    # print instance
+                    print ""
+                    print "Instance="
+                    print pprint.pprint(instance)
+                    print "Instance State = " + instance[unicode('State')][unicode('Name')]
 
-               # if instance[unicode('State')][unicode('Name')] == 'running' and instance[unicode('PublicIpAddress')] != None:           
-               if instance[unicode('State')][unicode('Name')] == 'running' and instance[unicode(tagKey_for_IP_address)] != None:
+                # if instance[unicode('State')][unicode('Name')] == 'running' and instance[unicode('PublicIpAddress')] != None:           
+                if instance[unicode('State')][unicode('Name')] == 'running' and instance[unicode(tagKey_for_IP_address)] != None:
                     ipaddress = instance[tagKey_for_IP_address]
                     if DEBUG:
                         print "Extracted Public addres=" + ipaddress
@@ -137,18 +138,48 @@ def get_public_IP_and_instance_hostname(targetInstance_ID):
 
 
 
+def get_hostedzoneid_from_hostname(hostname):
+    # hostname = "owncloud.adrianws.com"
+
+    hosted_zone_id = ""
+    string_list = hostname.split(".")
+    list_length = len(string_list)
+    top_level_domain = string_list[list_length - 1]
+    top_level_domain_name = string_list[list_length - 2]
+
+    hosted_zone_name = top_level_domain_name + "." + top_level_domain + "."
+
+    if DEBUG:
+        print "hosted_zone_name="
+        print hosted_zone_name
+
+    client = boto3.client('route53')
+    response = client.list_hosted_zones()
+
+    for hostedzone in response["HostedZones"]:
+      if DEBUG:
+        pprint.pprint(hostedzone)
+        print "" 
+      if hostedzone["Name"] == hosted_zone_name:
+        hosted_zone_id = hostedzone["Id"]
+        if DEBUG:
+          print "Found matching hosted zone in Route53!"
+          print "hosted_zone_id="
+          print hosted_zone_id
+      break
+
+    return hosted_zone_id
+
+
+
+
 #Update the hostname if it is not already set to the desired hostname
 def update_instance_hostname(public_IP, the_desired_hostname):
     hostname_already_setup = False
-
-    # Check the current status of the hostname to determine if it needs to be updated
-    #<code here>    
-
-    # if DEBUG:
-    #     if hostname_already_setup:
-    #         print 'Hostname DOES NOT need to be setup'
-    #     else:
-    #         print 'Hostname needs to be setup'
+    target_HostedZoneId = get_hostedzoneid_from_hostname(the_desired_hostname)
+    my_region = 'us-west-2'
+    public_IP = "12.23.34.45"
+    DNS_name =  the_desired_hostname + "."
 
     if DEBUG:
         print "------------------------"
@@ -156,24 +187,22 @@ def update_instance_hostname(public_IP, the_desired_hostname):
         print ""
 
 
-
-
-
     client = boto3.client('route53')
     response = client.change_resource_record_sets(
-        HostedZoneId='adrianws.com',
+        HostedZoneId=target_HostedZoneId,
         ChangeBatch={
             'Comment': 'Updated by updateDNSaRecord() Lambda function',
             'Changes': [
                 {
                     'Action': 'UPSERT',
                     'ResourceRecordSet': {
-                        'Name': 'string',
+                        # 'Name': 'string',
+                        'Name': DNS_name,
                         'Type': 'A',
                         # 'SetIdentifier': 'string',
                         # 'Weight': 123,
                         # 'Region': 'us-east-1'|'us-east-2'|'us-west-1'|'us-west-2'|'ca-central-1'|'eu-west-1'|'eu-west-2'|'eu-central-1'|'ap-southeast-1'|'ap-southeast-2'|'ap-northeast-1'|'ap-northeast-2'|'sa-east-1'|'cn-north-1'|'ap-south-1',
-                        'Region': 'us-west-2',
+                        'Region': my_region,
                         # 'GeoLocation': {
                         #     'ContinentCode': 'string',
                         #     'CountryCode': 'string',
@@ -183,9 +212,9 @@ def update_instance_hostname(public_IP, the_desired_hostname):
                         'TTL': 60,
                         'ResourceRecords': [
                             {
-                                the_desired_hostname: public_IP
+                                'Value': '12.23.34.45'
                             },
-                        ],
+                        ]
                         # 'AliasTarget': {
                         #     'HostedZoneId': 'string',
                         #     'DNSName': 'string',
@@ -194,7 +223,7 @@ def update_instance_hostname(public_IP, the_desired_hostname):
                         # 'HealthCheckId': 'string',
                         # 'TrafficPolicyInstanceId': 'string'
                     }
-                },
+                }
             ]
         }
     )
@@ -204,7 +233,7 @@ def update_instance_hostname(public_IP, the_desired_hostname):
 
 
 #Notify via SNS Topic
-def publish_to_notify_topic(targetInstance_ID, desired_hostname)
+def publish_to_notify_topic(targetInstance_ID, desired_hostname):
     #lookup SNS Target ARN based on hostname or context variable
     arn = "arn:aws:sns:us-west-2:101845606311:Topic_for_notifications_for_owncloud_adrianws_com"
     host = desired_hostname
@@ -232,7 +261,7 @@ def lambda_handler(event):
     
     #Get the DNS/hostname to be updated
     # desired_hostname = get_instance_hostname(targetInstance_ID)
-    
+
     #Update the hostname 
     update_instance_hostname(public_IP, desired_hostname)
     
