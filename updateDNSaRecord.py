@@ -177,8 +177,8 @@ def get_hostedzoneid_from_hostname(hostname):
 def update_instance_hostname(public_IP, the_desired_hostname):
     hostname_already_setup = False
     target_HostedZoneId = get_hostedzoneid_from_hostname(the_desired_hostname)
-    my_region = 'us-west-2'
-    public_IP = "12.23.34.45"
+    # my_region = 'us-west-2'
+    public_IP = "12.23.34.45"                   #Default for testing and in case the function somehow ran when the instance was stopped
     DNS_name =  the_desired_hostname + "."
 
     if DEBUG:
@@ -202,7 +202,7 @@ def update_instance_hostname(public_IP, the_desired_hostname):
                         # 'SetIdentifier': 'string',
                         # 'Weight': 123,
                         # 'Region': 'us-east-1'|'us-east-2'|'us-west-1'|'us-west-2'|'ca-central-1'|'eu-west-1'|'eu-west-2'|'eu-central-1'|'ap-southeast-1'|'ap-southeast-2'|'ap-northeast-1'|'ap-northeast-2'|'sa-east-1'|'cn-north-1'|'ap-south-1',
-                        'Region': my_region,
+                        # 'Region': my_region,
                         # 'GeoLocation': {
                         #     'ContinentCode': 'string',
                         #     'CountryCode': 'string',
@@ -212,8 +212,8 @@ def update_instance_hostname(public_IP, the_desired_hostname):
                         'TTL': 60,
                         'ResourceRecords': [
                             {
-                                'Value': '12.23.34.45'
-                            },
+                                'Value': public_IP
+                            }
                         ]
                         # 'AliasTarget': {
                         #     'HostedZoneId': 'string',
@@ -233,12 +233,17 @@ def update_instance_hostname(public_IP, the_desired_hostname):
 
 
 #Notify via SNS Topic
-def publish_to_notify_topic(targetInstance_ID, desired_hostname):
+def publish_to_notify_topic(targetInstance_ID, desired_hostname, public_IP):
     #lookup SNS Target ARN based on hostname or context variable
     arn = "arn:aws:sns:us-west-2:101845606311:Topic_for_notifications_for_owncloud_adrianws_com"
     host = desired_hostname
     instance = targetInstance_ID
-    message = "THE DNS ENTRY FOR " + instance + "has been updated to" + host
+    message = "THE DNS ENTRY INSTANCE ID: " + instance + " THAT HAS IP ADDRESS: " + public_IP + " has been updated to " + host
+
+    if DEBUG:
+        print ""
+        print message 
+        print ""
     client_sns = boto3.client('sns')
     response = client_sns.publish(
         Subject="Message from the updateDNSRecord() Lambda Function",
@@ -266,7 +271,7 @@ def lambda_handler(event):
     update_instance_hostname(public_IP, desired_hostname)
     
     #Notify via SNS Topic
-    publish_to_notify_topic(targetInstance_ID, desired_hostname)
+    publish_to_notify_topic(targetInstance_ID, desired_hostname, public_IP)
 
 
 
