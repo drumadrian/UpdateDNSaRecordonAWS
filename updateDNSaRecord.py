@@ -254,7 +254,7 @@ def publish_to_notify_topic(targetInstance_ID, desired_hostname, public_IP):
 
 
 
-def lambda_handler(event):
+def lambda_handler(event, context):
 
     print 'Running lambda_handler'
 
@@ -276,44 +276,16 @@ def lambda_handler(event):
 
 
 
-
-
-
-
-
-
 # Update DNS for WHO (HOSTNAME) to WHAT (IP ADDRESS)
 if __name__ == '__main__':
     print 'Running Locally?....'
     #Create test event
     # test_event = dict()
     test_event={u'account': u'101845606311', u'region': u'us-west-2', u'detail': {u'state': u'running', u'instance-id': u'i-0fbe1a6a8bbffb9d7'}, u'detail-type': u'EC2 Instance State-change Notification', u'source': u'aws.ec2', u'version': u'0', u'time': u'2017-06-03T03:53:02Z', u'id': u'9fd9ac5d-5e17-430d-aa6d-15ab47335b70', u'resources': [u'arn:aws:ec2:us-west-2:101845606311:instance/i-0fbe1a6a8bbffb9d7']}
-
-    lambda_handler(test_event)
+    context = "not yet setup for local testing"
+    lambda_handler(test_event,context)
 else:
     print '__name__ !=__main__ So this is probably running in AWS'
     print 'ALERT:  You should NOT be seeing this Alert!!'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
