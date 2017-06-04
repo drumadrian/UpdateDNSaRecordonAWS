@@ -81,7 +81,7 @@ def get_public_IP_and_instance_hostname(targetInstance_ID):
 
 
     client = boto3.client('ec2')
-    ipaddress = "12.23.34.45"
+    ipaddress = "12.23.34.45"   #Default for testing and in case the function somehow ran when the instance was not running
     tagKey_forDNS_hostname = "dnsname"
     tagKey_for_IP_address = "PublicIpAddress"
     # tagValue = ""
@@ -158,6 +158,7 @@ def get_hostedzoneid_from_hostname(hostname):
 
     for hostedzone in response["HostedZones"]:
       if DEBUG:
+        print "hostedzone="
         pprint.pprint(hostedzone)
         print "" 
       if hostedzone["Name"] == hosted_zone_name:
@@ -166,7 +167,7 @@ def get_hostedzoneid_from_hostname(hostname):
           print "Found matching hosted zone in Route53!"
           print "hosted_zone_id="
           print hosted_zone_id
-      break
+        break
 
     return hosted_zone_id
 
@@ -175,16 +176,23 @@ def get_hostedzoneid_from_hostname(hostname):
 
 #Update the hostname if it is not already set to the desired hostname
 def update_instance_hostname(public_IP, the_desired_hostname):
-    hostname_already_setup = False
+    # hostname_already_setup = False
     target_HostedZoneId = get_hostedzoneid_from_hostname(the_desired_hostname)
     # my_region = 'us-west-2'
-    public_IP = "12.23.34.45"                   #Default for testing and in case the function somehow ran when the instance was stopped
+    # public_IP = "22.23.34.45"                   
     DNS_name =  the_desired_hostname + "."
 
     if DEBUG:
         print "------------------------"
+        print "the_desired_hostname="
+        print the_desired_hostname
+        print ""
+        print "target_HostedZoneId="
+        print target_HostedZoneId
         print ""
         print ""
+        print "DNS_name="
+        print DNS_name
 
 
     client = boto3.client('route53')
@@ -239,6 +247,8 @@ def publish_to_notify_topic(targetInstance_ID, desired_hostname, public_IP):
     host = desired_hostname
     instance = targetInstance_ID
     message = "THE DNS ENTRY INSTANCE ID: " + instance + " THAT HAS IP ADDRESS: " + public_IP + " has been updated to " + host
+    please_wait_message = "  \n\n   Please allow at least 2 minutes for the changes to be propagated to your computer"
+    message =  message + please_wait_message
 
     if DEBUG:
         print ""
